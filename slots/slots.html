@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<title>Sugar Rush Slot</title>
+
+<style>
+body{
+  margin:0;
+  background:linear-gradient(135deg,#ff7ac8,#ffd56b);
+  font-family:Arial;
+  color:#fff;
+  text-align:center;
+  overflow:hidden;
+}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(5,90px);
+  grid-template-rows:repeat(5,90px);
+  gap:10px;
+  justify-content:center;
+  margin:25px auto;
+}
+.cell{
+  width:90px;height:90px;
+  border-radius:18px;
+  background:#ffffff33;
+  font-size:40px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  position:relative;
+}
+.mult{
+  position:absolute;
+  bottom:6px;right:6px;
+  width:38px;height:38px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:15px;
+  font-weight:bold;
+  color:#000;
+}
+.low{background:#ffe066;}
+.mid{background:#c77dff;}
+.high{background:#ff4d4d;}
+.max{background:#4ddcff;}
+.explosion{
+  position:absolute;inset:0;
+  border-radius:18px;
+  background:radial-gradient(circle,#fff,#ff7ac8,transparent);
+  animation:explode .8s forwards;
+}
+@keyframes explode{
+  from{opacity:1;transform:scale(.4)}
+  to{opacity:0;transform:scale(2)}
+}
+.fall{ animation:fall 1.6s cubic-bezier(.25,.8,.25,1); }
+@keyframes fall{
+  from{transform:translateY(-220px);opacity:0;}
+  to{transform:translateY(0);opacity:1;}
+}
+.winText{
+  position:absolute;
+  font-size:26px;
+  font-weight:bold;
+  color:#ffe066;
+  text-shadow:0 0 8px #fff;
+  animation:float 1.6s forwards;
+  pointer-events:none;
+  z-index:10;
+}
+.winBox{
+  position:fixed;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  background:linear-gradient(135deg,#ff4fa3,#ffe066);
+  padding:40px 70px;
+  border-radius:30px;
+  box-shadow:0 0 80px #fff;
+  z-index:40;
+  text-align:center;
+}
+.firework{
+  position:fixed;
+  width:14px;height:14px;
+  border-radius:50%;
+  animation:fw 2s forwards;
+}
+@keyframes fw{
+  to{
+    transform:translate(var(--x),var(--y)) scale(0);
+    opacity:0;
+  }
+}
+.candy{
+  position:fixed;
+  top:-50px;
+  font-size:34px;
+  animation:candyFall linear forwards;
+}
+@keyframes candyFall{
+  to{ transform:translateY(130vh) rotate(360deg); }
+}
+#overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.75);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+  font-size:64px;
+  z-index:50;
+}
+
+/* GAME CARD */
+#gameCard {
+  position:fixed;
+  top:10px;
+  left:10px;
+  background:#fff;
+  color:#000;
+  padding:10px 15px;
+  border-radius:12px;
+  text-decoration:none;
+  font-weight:bold;
+  z-index:100;
+}
+</style>
+</head>
+
+<body>
+
+<!-- GAME CARD -->
+<a id="gameCard" href="http://127.0.0.1:5500/spel/startsida/startsida.html">← Tillbaka till startsidan</a>
+
+<h1>🍭 Sugar Rush 🍬</h1>
+<div>Balans: <span id="bal">1000</span> | Free spins: <span id="fs">0</span></div>
+<div class="grid" id="grid"></div>
+<button onclick="spin()">SPIN</button>
+<button onclick="buyBonus()">KÖP BONUS</button>
+<div id="overlay"></div>
+
+<script>
+const symbols=["🍬","🍭","🍩","🍪","🍫"];
+const values={"🍬":2,"🍭":3,"🍩":4,"🍪":5,"🍫":7};
+const rows=5, cols=5;
+let grid=[], mult=[];
+let balance=1000, bet=20;
+let freeSpins=0, bonus=false, bonusTotal=0;
+let spinning=false, animationActive=false;
+let spinWinTotal=0; // TOTAL FÖR SPINN
+let pendingBigWin=null;
+
+// slumpa symbol
+const randSym=()=>symbols[Math.floor(Math.random()*symbols.length)];
+function multClass(v){if(v<=4) return "low"; if(v<=16) return "mid"; if(v<=64) return "high"; return "max";}
+
+/* INIT GRID */
+function initGrid(resetMult){
+  grid=[];
+  for(let r=0;r<rows;r++){
+    grid[r]=[];
+    mult[r]=mult[r]||[];
+    for(let c=0;c<cols;c++){
+      grid[r][c]=randSym();
+      if(resetMult) mult[r][c]=1;
+    }
+  }
+  render(true);
+}
+
+/* RENDER GRID */
+function render(fall=false){
+  const g=document.getElementById('grid');
+  g.innerHTML='';
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    const d=document.createElement('div');
+    d.className='cell'+(fall?' fall':'');
+    d.textContent=grid[r][c]||'';
+    if(mult[r][c]>1){
+      const m=document.createElement('div');
+      m.className='mult '+multClass(mult[r][c]);
+      m.textContent='x'+mult[r][c];
+      d.appendChild(m);
+    }
+    g.appendChild(d);
+  }
+}
+
+/* BONUS */
+function buyBonus(){
+  if(balance<400||spinning||animationActive) return;
+  balance-=400;
+  freeSpins=10;
+  bonus=true;
+  bonusTotal=0;
+  showOverlay("BONUS STARTAR 🎉",()=>spin());
+}
+
+/* SPIN */
+function spin(){
+  if(spinning||animationActive) return;
+  spinning=true;
+  spinWinTotal=0;
+  pendingBigWin=null;
+  if(freeSpins>0) freeSpins--;
+  else balance-=bet;
+  initGrid(false);
+  update();
+  setTimeout(check,700);
+}
+
+/* FIND CLUSTERS */
+function findClusters(){
+  let v=Array.from({length:rows},()=>Array(cols).fill(false));
+  let res=[];
+  function dfs(r,c,s,a){
+    if(r<0||c<0||r>=rows||c>=cols||v[r][c]||grid[r][c]!==s) return;
+    v[r][c]=true;a.push([r,c]);
+    dfs(r+1,c,s,a);dfs(r-1,c,s,a);
+    dfs(r,c+1,s,a);dfs(r,c-1,s,a);
+  }
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+    if(!v[r][c]){let a=[];dfs(r,c,grid[r][c],a);if(a.length>=4)res.push(a);}
+  }
+  return res;
+}
+
+/* CHECK CLUSTERS */
+function check(){
+  const clusters=findClusters();
+  if(!clusters.length){
+    spinning=false;
+
+    if(spinWinTotal>=600) pendingBigWin="MEGA WIN";
+    else if(spinWinTotal>=300) pendingBigWin="SUPER WIN";
+
+    if(pendingBigWin){
+      celebration(pendingBigWin,spinWinTotal,afterSpinEnd);
+    }else{
+      showSpinWin(spinWinTotal);
+      setTimeout(afterSpinEnd,2200);
+    }
+    return;
+  }
+
+  const cells=document.querySelectorAll('.cell');
+
+  clusters.forEach(g=>{
+    let clusterGain=0;
+    g.forEach(([r,c])=>{
+      const gain=values[grid[r][c]]*mult[r][c];
+      clusterGain+=gain;
+      mult[r][c]*=2;
+      grid[r][c]=null;
+    });
+
+    spinWinTotal+=clusterGain;
+
+    const r0=g[0][0], c0=g[0][1];
+    const rect=cells[r0*cols+c0].getBoundingClientRect();
+    const txt=document.createElement('div');
+    txt.className='winText';
+    txt.style.top=rect.top+'px';
+    txt.style.left=rect.left+'px';
+    txt.textContent='+'+clusterGain;
+    document.body.appendChild(txt);
+    setTimeout(()=>txt.remove(),1600);
+
+    g.forEach(([r,c])=>{
+      const e=document.createElement('div');
+      e.className='explosion';
+      cells[r*cols+c].appendChild(e);
+    });
+  });
+
+  balance+=spinWinTotal;
+  if(bonus) bonusTotal+=spinWinTotal;
+
+  update();
+  setTimeout(drop,1300);
+}
+
+/* DROP */
+function drop(){
+  for(let c=0;c<cols;c++){
+    let col=[];
+    for(let r=rows-1;r>=0;r--) if(grid[r][c]) col.push(grid[r][c]);
+    for(let r=rows-1;r>=0;r--) grid[r][c]=col.length?col.shift():randSym();
+  }
+  render(true);
+  setTimeout(check,1600);
+}
+
+/* AFTER SPIN */
+function afterSpinEnd(){
+  if(!bonus) resetMultipliers();
+  else if(bonus && freeSpins===0) endBonus();
+}
+
+/* RESET MULT */
+function resetMultipliers(){
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++) mult[r][c]=1;
+}
+
+/* BONUS END */
+function endBonus(){
+  celebration("BONUS SLUT",bonusTotal,()=>{
+    bonus=false;
+    resetMultipliers();
+  });
+}
+
+/* SHOW TOTAL SPIN WIN */
+function showSpinWin(amount){
+  if(amount>0){
+    const t=document.createElement('div');
+    t.className='winBox';
+    t.innerHTML=`<h2>WIN</h2><div>+${amount}</div>`;
+    document.body.appendChild(t);
+    setTimeout(()=>t.remove(),2200);
+  }
+}
+
+/* CELEBRATION */
+function celebration(title,amount,cb){
+  animationActive=true;
+  const box=document.createElement('div');
+  box.className='winBox';
+  box.innerHTML=`<h2>${title}</h2><div>+${amount}</div>`;
+  document.body.appendChild(box);
+
+  const interval=setInterval(()=>{
+    fireworks(200);
+    candyRain(80);
+  },500);
+
+  const finishAnim=()=>{
+    clearInterval(interval);
+    box.remove();
+    animationActive=false;
+    cb && cb();
+    window.removeEventListener('click',finishAnim);
+  };
+
+  window.addEventListener('click',finishAnim);
+  setTimeout(finishAnim,6000);
+}
+
+/* FIREWORKS */
+function fireworks(n){
+  for(let i=0;i<n;i++){
+    const f=document.createElement('div');
+    f.className='firework';
+    f.style.left=Math.random()*innerWidth+'px';
+    f.style.top=Math.random()*innerHeight+'px';
+    f.style.background=`hsl(${Math.random()*360},100%,60%)`;
+    f.style.setProperty('--x',(Math.random()*1400-700)+'px');
+    f.style.setProperty('--y',(Math.random()*1400-700)+'px');
+    document.body.appendChild(f);
+    setTimeout(()=>f.remove(),2000);
+  }
+}
+
+/* CANDY RAIN */
+function candyRain(n){
+  for(let i=0;i<n;i++){
+    const c=document.createElement('div');
+    c.className='candy';
+    c.textContent=symbols[Math.floor(Math.random()*symbols.length)];
+    c.style.left=Math.random()*100+'vw';
+    c.style.animationDuration=(3+Math.random()*2)+'s';
+    document.body.appendChild(c);
+    setTimeout(()=>c.remove(),5000);
+  }
+}
+
+/* OVERLAY */
+function showOverlay(text,cb){
+  const o=document.getElementById('overlay');
+  o.innerHTML=text;
+  o.style.display='flex';
+  setTimeout(()=>{ o.style.display='none'; cb&&cb(); },3000);
+}
+
+/* UPDATE UI */
+function update(){ bal.textContent=balance; fs.textContent=freeSpins; }
+
+initGrid(true); update();
+</script>
+</body>
+</html>

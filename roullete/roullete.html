@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<title>Roulette</title>
+
+<style>
+body{
+    margin:0;
+    background:#065;
+    font-family:Arial, sans-serif;
+    color:white;
+}
+
+/* GAME CARD */
+#gameCard {
+    position:fixed;
+    top:10px;
+    left:10px;
+    background:#fff;
+    color:#000;
+    padding:10px 15px;
+    border-radius:12px;
+    text-decoration:none;
+    font-weight:bold;
+    z-index:100;
+}
+
+#game{
+    display:flex;
+    gap:40px;
+    padding:30px;
+}
+
+#wheel-wrapper{
+    position:relative;
+    width:360px;
+    height:360px;
+}
+
+#pointer{
+    position:absolute;
+    top:-6px;
+    left:50%;
+    width:0;
+    height:0;
+    border-left:12px solid transparent;
+    border-right:12px solid transparent;
+    border-bottom:20px solid yellow;
+    transform:translateX(-50%);
+    z-index:10;
+}
+
+#ball{
+    position:absolute;
+    width:10px;
+    height:10px;
+    background:white;
+    border-radius:50%;
+    left:50%;
+    top:50%;
+    transform:translate(-50%,-50%) rotate(0deg) translateY(-145px);
+    transition:transform 4s cubic-bezier(.1,.6,.25,1);
+}
+
+#table{
+    display:grid;
+    grid-template-columns:60px repeat(12,45px);
+    grid-template-rows:repeat(3,45px) 45px 45px;
+    gap:2px;
+}
+
+.cell{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border:1px solid rgba(255,255,255,.4);
+    cursor:pointer;
+    user-select:none;
+    font-size:14px;
+}
+
+.red{background:#b00;}
+.black{background:#000;}
+.green{background:#080;}
+.bet{background:#064;}
+.selected{outline:3px solid yellow;}
+
+button{
+    margin-top:15px;
+    padding:10px 20px;
+    font-size:16px;
+}
+</style>
+</head>
+
+<body>
+
+<a id="gameCard" href="http://127.0.0.1:5500/spel/startsida/startsida.html">← Tillbaka till startsidan</a>
+
+<div id="game">
+
+<div id="wheel-wrapper">
+<div id="pointer"></div>
+<svg id="wheel" viewBox="0 0 360 360" width="360" height="360">
+<circle cx="180" cy="180" r="170" fill="gold"/>
+</svg>
+<div id="ball"></div>
+</div>
+
+<div>
+<div id="table"></div>
+<button onclick="spin()">Snurra</button>
+<p id="result"></p>
+</div>
+
+</div>
+
+<script>
+/* ===== DATA ===== */
+const wheelOrder=[
+0,32,15,19,4,21,2,25,17,34,6,27,
+13,36,11,30,8,23,10,5,24,16,
+33,1,20,14,31,9,22,18,29,
+7,28,12,35,3,26
+];
+
+const redNumbers=[
+1,3,5,7,9,12,14,16,18,
+19,21,23,25,27,30,32,34,36
+];
+
+let activeBet=null;
+let currentRotation=0;
+const angle=360/wheelOrder.length;
+
+/* ===== RITA HJUL ===== */
+const svg=document.getElementById("wheel");
+
+wheelOrder.forEach((n,i)=>{
+    const g=document.createElementNS("http://www.w3.org/2000/svg","g");
+    g.setAttribute("transform",`rotate(${i*angle} 180 180)`);
+    const path=document.createElementNS("http://www.w3.org/2000/svg","path");
+    path.setAttribute(
+      "d","M180 180 L180 18 A162 162 0 0 1 205 20 Z"
+    );
+    path.setAttribute("fill",
+      n===0?"#080":redNumbers.includes(n)?"#b00":"#000");
+
+    const text=document.createElementNS("http://www.w3.org/2000/svg","text");
+    text.setAttribute("x","190");
+    text.setAttribute("y","42");
+    text.setAttribute("dx","4");
+    text.setAttribute("fill","white");
+    text.setAttribute("font-size","13");
+    text.setAttribute("text-anchor","middle");
+    text.setAttribute("dominant-baseline","middle");
+    text.setAttribute(
+      "transform",
+      `rotate(${-i*angle} 190 42)`
+    );
+    text.textContent=n;
+
+    g.appendChild(path);
+    g.appendChild(text);
+    svg.appendChild(g);
+});
+
+/* ===== BORD ===== */
+const table=document.getElementById("table");
+
+const zero=document.createElement("div");
+zero.className="cell green";
+zero.textContent="0";
+zero.style.gridRow="1 / span 3";
+table.appendChild(zero);
+
+let num=1;
+for(let col=2;col<=13;col++){
+    for(let row=3;row>=1;row--){
+        const c=document.createElement("div");
+        c.className=`cell ${redNumbers.includes(num)?"red":"black"}`;
+        c.textContent=num;
+        c.style.gridColumn=col;
+        c.style.gridRow=row;
+        table.appendChild(c);
+        num++;
+    }
+}
+
+["1st 12","2nd 12","3rd 12"].forEach((t,i)=>{
+    const d=document.createElement("div");
+    d.className="cell bet";
+    d.textContent=t;
+    d.style.gridColumn=`${2+i*4} / span 4`;
+    d.style.gridRow="4";
+    table.appendChild(d);
+});
+
+["1–18","Even","Red","Black","Odd","19–36"].forEach((t,i)=>{
+    const b=document.createElement("div");
+    b.className="cell bet";
+    b.textContent=t;
+    b.style.gridColumn=2+i*2;
+    b.style.gridRow=5;
+    table.appendChild(b);
+});
+
+document.querySelectorAll(".cell").forEach(c=>{
+    c.onclick=()=>{
+        document.querySelectorAll(".cell").forEach(x=>x.classList.remove("selected"));
+        c.classList.add("selected");
+        activeBet=c.textContent;
+    };
+});
+
+/* ===== SPIN ===== */
+function spin(){
+    const extraSpins=1440;
+    const randomAngle=Math.random()*360;
+    currentRotation+=extraSpins+randomAngle;
+    ball.style.transform=
+        `translate(-50%,-50%) rotate(${currentRotation}deg) translateY(-145px)`;
+
+    setTimeout(()=>{
+         const visualOffset = -angle * 0.80;
+         const normalized = (360 - ((currentRotation + visualOffset) % 360)) % 360;
+         const index=(wheelOrder.length-Math.floor(normalized/angle))%wheelOrder.length;
+         const result=wheelOrder[index];
+         document.getElementById("result").textContent=
+            `Resultat: ${result} – ${checkWin(result)?"VINST":"FÖRLUST"}`;
+    },4000);
+}
+
+/* ===== VINST ===== */
+function checkWin(r){
+    if(!activeBet) return false;
+    if(activeBet==="Red") return redNumbers.includes(r);
+    if(activeBet==="Black") return r!==0&&!redNumbers.includes(r);
+    if(activeBet==="Even") return r!==0&&r%2===0;
+    if(activeBet==="Odd") return r!==0&&r%2===1;
+    if(activeBet==="1–18") return r>=1&&r<=18;
+    if(activeBet==="19–36") return r>=19&&r<=36;
+    if(activeBet==="1st 12") return r>=1&&r<=12;
+    if(activeBet==="2nd 12") return r>=13&&r<=24;
+    if(activeBet==="3rd 12") return r>=25&&r<=36;
+    return Number(activeBet)===r;
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8">
+<title>Blackjack</title>
+
+<style>
+body {
+    background:#0b3d2e;
+    color:white;
+    font-family:sans-serif;
+    text-align:center;
+}
+
+/* GAME CARD */
+#gameCard {
+    position:fixed;
+    top:10px;
+    left:10px;
+    background:#fff;
+    color:#000;
+    padding:10px 15px;
+    border-radius:12px;
+    text-decoration:none;
+    font-weight:bold;
+    z-index:100;
+}
+
+.cards {
+    display:flex;
+    justify-content:center;
+    gap:10px;
+    margin:15px;
+}
+.card {
+    width:80px;
+    height:120px;
+    background:white;
+    color:black;
+    border-radius:8px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:22px;
+    animation: deal 0.8s ease;
+}
+.hidden {
+    background:#444;
+    color:#444;
+}
+button {
+    padding:10px 20px;
+    font-size:16px;
+    margin:5px;
+    cursor:pointer;
+}
+.score {
+    margin-top:5px;
+    font-weight:bold;
+}
+@keyframes deal {
+    from {transform: translateY(-40px) rotateY(90deg);}
+    to {transform: translateY(0) rotateY(0);}
+}
+</style>
+</head>
+
+<body>
+
+<a id="gameCard" href="http://127.0.0.1:5500/spel/startsida/startsida.html">← Tillbaka till startsidan</a>
+
+<h1>Blackjack 🃏</h1>
+
+<h2>Dealer</h2>
+<div id="dealer" class="cards"></div>
+<div id="dealerScore" class="score"></div>
+
+<h2>Spelare</h2>
+<div id="player" class="cards"></div>
+<div id="playerScore" class="score"></div>
+
+<button onclick="hit()">Hit</button>
+<button onclick="stand()">Stand</button>
+<button onclick="startGame()">Nytt spel</button>
+
+<p id="result"></p>
+
+<script>
+// -------- MJUKT KORTLJUD --------
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+function playCardSound() {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.value = 220;
+
+    gain.gain.setValueAtTime(0, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.15, audioCtx.currentTime + 0.05);
+    gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.2);
+}
+
+// -------- Kortlek --------
+const deck = ["2","3","4","5","6","7","8","9","10","J","Q","K","A"];
+let playerCards = [];
+let dealerCards = [];
+let gameOver = false;
+
+// -------- Kortvärden --------
+function cardBaseValue(card) {
+    if (["J","Q","K"].includes(card)) return 10;
+    if (card === "A") return 11;
+    return parseInt(card);
+}
+
+// -------- RIKTIG ESS-LOGIK --------
+function calculateScore(cards) {
+    let total = 0;
+    let aces = 0;
+
+    cards.forEach(card => {
+        total += cardBaseValue(card);
+        if (card === "A") aces++;
+    });
+
+    while (total > 21 && aces > 0) {
+        total -= 10;
+        aces--;
+    }
+
+    return total;
+}
+
+// Visa poäng
+function displayScore(cards) {
+    let total = 0;
+    let aces = 0;
+
+    cards.forEach(card => {
+        total += cardBaseValue(card);
+        if (card === "A") aces++;
+    });
+
+    if (aces > 0 && total <= 11) {
+        return total + " / " + (total + 10);
+    }
+
+    while (total > 21 && aces > 0) {
+        total -= 10;
+        aces--;
+    }
+
+    return total.toString();
+}
+
+function drawCard() {
+    return deck[Math.floor(Math.random() * deck.length)];
+}
+
+function createCard(text, hidden=false) {
+    const div = document.createElement("div");
+    div.className = "card";
+    div.textContent = hidden ? "?" : text;
+    if (hidden) div.classList.add("hidden");
+    return div;
+}
+
+// -------- SPELSTART --------
+async function startGame() {
+    playerCards = [];
+    dealerCards = [];
+    gameOver = false;
+
+    document.getElementById("player").innerHTML = "";
+    document.getElementById("dealer").innerHTML = "";
+    document.getElementById("result").textContent = "";
+
+    await deal(playerCards);
+    await deal(dealerCards);
+    await deal(playerCards);
+    await deal(dealerCards, true);
+
+    render(false);
+
+    if (calculateScore(playerCards) === 21) {
+        endGame("Blackjack! Du vinner direkt 🎉");
+    }
+}
+
+async function deal(hand, hidden=false) {
+    return new Promise(resolve => {
+        setTimeout(() => {
+            playCardSound();
+            hand.push(drawCard());
+            render(false);
+            resolve();
+        }, 500);
+    });
+}
+
+// -------- RENDER --------
+function render(showDealer) {
+    const p = document.getElementById("player");
+    const d = document.getElementById("dealer");
+
+    p.innerHTML = "";
+    d.innerHTML = "";
+
+    playerCards.forEach(c => p.appendChild(createCard(c)));
+    dealerCards.forEach((c,i) =>
+        d.appendChild(createCard(c, i===1 && !showDealer))
+    );
+
+    document.getElementById("playerScore").textContent =
+        "Poäng: " + displayScore(playerCards);
+
+    document.getElementById("dealerScore").textContent =
+        showDealer ? "Poäng: " + displayScore(dealerCards) : "Poäng: ?";
+}
+
+// -------- SPELVAL --------
+async function hit() {
+    if (gameOver) return;
+    await deal(playerCards);
+    render(false);
+
+    if (calculateScore(playerCards) > 21) {
+        endGame("Bust! Dealern vinner 💥");
+    }
+}
+
+async function stand() {
+    if (gameOver) return;
+
+    while (calculateScore(dealerCards) < 17) {
+        await deal(dealerCards);
+    }
+
+    const p = calculateScore(playerCards);
+    const d = calculateScore(dealerCards);
+
+    if (d > 21 || p > d) endGame("Du vinner! 🎉");
+    else if (p === d) endGame("Push! Oavgjort 🤝");
+    else endGame("Dealern vinner 😢");
+}
+
+function endGame(text) {
+    gameOver = true;
+    render(true);
+    document.getElementById("result").textContent = text;
+}
+
+startGame();
+</script>
+
+</body>
+</html>

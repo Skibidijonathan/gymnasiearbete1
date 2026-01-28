@@ -1,0 +1,69 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Segoe UI", sans-serif;
+}
+
+body {
+    height: 100vh;
+    background: radial-gradient(circle at top, #1c1c1c, #0b0b0b);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.title {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    opacity: 0.7;
+    margin-bottom: 50px;
+}
+
+.game-container {
+    display: flex;
+    gap: 40px;
+}
+
+.game-card {
+    width: 220px;
+    height: 300px;
+    background: linear-gradient(145deg, #e6e6e6, #cfcfcf);
+    color: black;
+    border-radius: 15px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    padding-bottom: 20px;
+    text-decoration: none;
+    font-size: 1.3rem;
+    font-weight: bold;
+    box-shadow: 0 15px 30px rgba(0,0,0,0.5);
+    transform-style: preserve-3d;
+    transition: transform 0.4s ease, box-shadow 0.4s ease;
+}
+
+.game-card:hover {
+    transform: rotateY(12deg) rotateX(6deg) scale(1.05);
+    box-shadow: 0 30px 60px rgba(255, 215, 0, 0.4);
+}
+
+/* Olika färgtema per spel */
+.game-card:nth-child(1) {
+    background: linear-gradient(145deg, #d32f2f, #b71c1c);
+    color: white;
+}
+
+.game-card:nth-child(2) {
+    background: linear-gradient(145deg, #1b5e20, #2e7d32);
+    color: white;
+}
+
+.game-card:nth-child(3) {
+    background: linear-gradient(145deg, #fbc02d, #f57f17);
+}
